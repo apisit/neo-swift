@@ -427,4 +427,39 @@ class NeoSwiftTests: XCTestCase {
         }
         waitForExpectations(timeout: 20, handler: nil)
     }
+    
+    func testGetRPXTokenDecimals() {
+        let exp = expectation(description: "Wait for connection count response")
+        let rpxHash = "ecc6b20d3ccac1ee9ef109af5a7cdb85706b1df9"
+        NeoClient.sharedMain.getNEP5TokenDecimal(token: rpxHash) { result in
+            switch result {
+            case .failure:
+                assert(false)
+            case .success(let decimals):
+                print(decimals)
+                exp.fulfill()
+                return
+            }
+        }
+        waitForExpectations(timeout: 20, handler: nil)
+    }
+    
+    func testGetRPXTokenSymbol() {
+        let exp = expectation(description: "Wait for connection count response")
+        let rpxHash = "ecc6b20d3ccac1ee9ef109af5a7cdb85706b1df9"
+        NeoClient.sharedMain.getNEP5TokenSymbol(token: rpxHash) { result in
+            switch result {
+            case .failure:
+                assert(false)
+            case .success(let symbol):
+                print(symbol)
+                exp.fulfill()
+                return
+            }
+        }
+        waitForExpectations(timeout: 20, handler: nil)
+    }
+    
+    
+    
 }
