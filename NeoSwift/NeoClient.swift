@@ -717,6 +717,13 @@ public class NeoClient {
     
     public func getNEP5TokenTotalSupply(token hash: String, completion: @escaping (NeoClientResult<UInt>) -> ()) {
         
+        let cacheKey = hash + NEP5Method.totalSupply.rawValue
+        if let v = tokenInfoCache.object(forKey: cacheKey as NSString) as? UInt {
+            let result = NeoClientResult.success(v)
+            completion(result)
+            return
+        }
+        
         var params:[Any] = []
         params.append(hash)
         params.append(NEP5Method.totalSupply.rawValue)
@@ -739,6 +746,7 @@ public class NeoClient {
                     let v = invokeResponse.stack?.first
                     //NEO system is little endian. The hex returns here is little endian byte array so we have to reverse it to BigEndian
                     let tokenSupply = v!.value!.littleEndianHexToUInt
+                    self.tokenInfoCache.setObject(tokenSupply as AnyObject, forKey: cacheKey as NSString)
                     let result = NeoClientResult.success(tokenSupply)
                     completion(result)
                     return
