@@ -77,6 +77,8 @@ public class NeoClient {
     public static let sharedMain = NeoClient(network: .main)
     private init() {}
     
+    let tokenInfoCache = NSCache<NSString, AnyObject>()
+    
     enum RPCMethod: String {
         case getBestBlockHash = "getbestblockhash"
         case getBlock = "getblock"
@@ -91,9 +93,19 @@ public class NeoClient {
         case getAccountState = "getaccountstate"
         case getAssetState = "getassetstate"
         case getPeers = "getpeers"
+        case invokeFunction = "invokefunction"
         //The following routes can't be invoked by calling an RPC server
         //We must use the wrapper for the nodes made by COZ
         case getBalance = "getbalance"
+    }
+    
+    enum NEP5Method: String {
+        case totalSupply = "totalSupply"
+        case name = "name"
+        case balanceOf = "balanceOf"
+        case decimals = "decimals"
+        case symbol = "symbol"
+        case transfer = "transfer"
     }
     
     enum apiURL: String {
@@ -162,7 +174,6 @@ public class NeoClient {
             return
         }
         request.httpBody = body
-        
         let task = URLSession.shared.dataTask(with: request as URLRequest) { (data, _, err) in
             if err != nil {
                 completion(.failure(.invalidRequest))
@@ -532,6 +543,215 @@ public class NeoClient {
                 }
                 let result = NeoClientResult.success(node)
                 completion(result)
+            }
+        }
+    }
+    
+    public func getNEP5TokenName(token hash: String, completion: @escaping (NeoClientResult<String>) -> ()) {
+        let cacheKey = hash + NEP5Method.name.rawValue
+        if let v = tokenInfoCache.object(forKey: cacheKey as NSString) as? String {
+            let result = NeoClientResult.success(v)
+            completion(result)
+            return
+        }
+        
+        var params:[Any] = []
+        params.append(hash)
+        params.append(NEP5Method.name.rawValue)
+        sendRequest(.invokeFunction, params: params) { result in
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success(let response):
+                let decoder = JSONDecoder()
+                #if DEBUG
+                    print(response)
+                #endif
+                guard let data = try? JSONSerialization.data(withJSONObject: (response["result"] as! JSONDictionary), options: .prettyPrinted),
+                    let invokeResponse = try? decoder.decode(BalanceOfResult.self, from: data) else {
+                        completion(.failure(.invalidData))
+                        return
+                }
+                if invokeResponse.stack?.count == 1 {
+                    let v = invokeResponse.stack?.first
+                    if v?.value == "" {
+                        completion(.failure(.invalidData))
+                        return
+                    }
+                    let byteArray = v?.value!.dataWithHexString()
+                    let symbol = String(data:byteArray!,encoding: .utf8)
+                    self.tokenInfoCache.setObject(symbol as AnyObject, forKey: cacheKey as NSString)
+                    let result = NeoClientResult.success(symbol!)
+                    completion(result)
+                    return
+                }
+                completion(.failure(.invalidData))
+            }
+        }
+    }
+    
+    public func getNEP5TokenSymbol(token hash: String, completion: @escaping (NeoClientResult<String>) -> ()) {
+        let cacheKey = hash + NEP5Method.symbol.rawValue
+        if let v = tokenInfoCache.object(forKey: cacheKey as NSString) as? String {
+            let result = NeoClientResult.success(v)
+            completion(result)
+            return
+        }
+        
+        var params:[Any] = []
+        params.append(hash)
+        params.append(NEP5Method.symbol.rawValue)
+        sendRequest(.invokeFunction, params: params) { result in
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success(let response):
+                let decoder = JSONDecoder()
+                #if DEBUG
+                print(response)
+                #endif
+                guard let data = try? JSONSerialization.data(withJSONObject: (response["result"] as! JSONDictionary), options: .prettyPrinted),
+                    let invokeResponse = try? decoder.decode(BalanceOfResult.self, from: data) else {
+                        completion(.failure(.invalidData))
+                        return
+                }
+                if invokeResponse.stack?.count == 1 {
+                    let v = invokeResponse.stack?.first
+                    if v?.value == "" {
+                        completion(.failure(.invalidData))
+                        return
+                    }
+                    let byteArray = v?.value!.dataWithHexString()
+                    let symbol = String(data:byteArray!,encoding: .utf8)
+                    self.tokenInfoCache.setObject(symbol as AnyObject, forKey: cacheKey as NSString)
+                    let result = NeoClientResult.success(symbol!)
+                    completion(result)
+                    return
+                }
+                completion(.failure(.invalidData))
+            }
+        }
+    }
+    
+    public func getNEP5TokenDecimal(token hash: String, completion: @escaping (NeoClientResult<Int>) -> ()) {
+        let cacheKey = hash + NEP5Method.decimals.rawValue
+        if let v = tokenInfoCache.object(forKey: cacheKey as NSString) as? Int {
+            let result = NeoClientResult.success(v)
+            completion(result)
+            return
+        }
+        
+        var params:[Any] = []
+        params.append(hash)
+        params.append(NEP5Method.decimals.rawValue)
+        sendRequest(.invokeFunction, params: params) { result in
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success(let response):
+                let decoder = JSONDecoder()
+                #if DEBUG
+                    print(response)
+                #endif
+                guard let data = try? JSONSerialization.data(withJSONObject: (response["result"] as! JSONDictionary), options: .prettyPrinted),
+                    let invokeResponse = try? decoder.decode(BalanceOfResult.self, from: data) else {
+                        completion(.failure(.invalidData))
+                        return
+                }
+                if invokeResponse.stack?.count == 1 {
+                    let v = invokeResponse.stack?.first
+                    if v?.value == "" {
+                        completion(.failure(.invalidData))
+                        return
+                    }
+                    let decimals = Int((v?.value)!)
+                    self.tokenInfoCache.setObject(decimals as AnyObject, forKey: cacheKey as NSString)
+                    let result = NeoClientResult.success(decimals!)
+                    completion(result)
+                    return
+                }
+                completion(.failure(.invalidData))
+            }
+        }
+    }
+    
+    public func getNEP5TokenBalance(for address: String, tokenHash: String, completion: @escaping (NeoClientResult<TokenBalance>) -> ()) {
+        
+        var params:[Any] = []
+        params.append(tokenHash)
+        params.append(NEP5Method.balanceOf.rawValue)
+        var args:[String:String] = [:]
+        args["type"] = "Hash160"
+        args["value"] = address.hash160()
+        params.append([args])
+        
+        sendRequest(.invokeFunction, params: params) { result in
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success(let response):
+                let decoder = JSONDecoder()
+                #if DEBUG
+                    print(response)
+                #endif
+                guard let data = try? JSONSerialization.data(withJSONObject: (response["result"] as! JSONDictionary), options: .prettyPrinted),
+                    let invokeResponse = try? decoder.decode(BalanceOfResult.self, from: data) else {
+                        completion(.failure(.invalidData))
+                        return
+                }
+                if invokeResponse.stack?.count == 1 {
+                    let v = invokeResponse.stack?.first
+                    //NEO system is little endian. The hex returns here is little endian byte array so we have to reverse it to BigEndian
+                    let tokenAmount = v!.value!.littleEndianHexToUInt
+                    //TODO get decimal
+                    print(tokenAmount)
+                    let tokenBalance = TokenBalance(amount: 10)
+                    let result = NeoClientResult.success(tokenBalance)
+                    completion(result)
+                    return
+                }
+                completion(.failure(.invalidData))
+            }
+        }
+    }
+    
+    public func getNEP5TokenTotalSupply(token hash: String, completion: @escaping (NeoClientResult<UInt>) -> ()) {
+        
+        let cacheKey = hash + NEP5Method.totalSupply.rawValue
+        if let v = tokenInfoCache.object(forKey: cacheKey as NSString) as? UInt {
+            let result = NeoClientResult.success(v)
+            completion(result)
+            return
+        }
+        
+        var params:[Any] = []
+        params.append(hash)
+        params.append(NEP5Method.totalSupply.rawValue)
+        
+        sendRequest(.invokeFunction, params: params) { result in
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success(let response):
+                let decoder = JSONDecoder()
+                #if DEBUG
+                    print(response)
+                #endif
+                guard let data = try? JSONSerialization.data(withJSONObject: (response["result"] as! JSONDictionary), options: .prettyPrinted),
+                    let invokeResponse = try? decoder.decode(BalanceOfResult.self, from: data) else {
+                        completion(.failure(.invalidData))
+                        return
+                }
+                if invokeResponse.stack?.count == 1 {
+                    let v = invokeResponse.stack?.first
+                    //NEO system is little endian. The hex returns here is little endian byte array so we have to reverse it to BigEndian
+                    let tokenSupply = v!.value!.littleEndianHexToUInt
+                    self.tokenInfoCache.setObject(tokenSupply as AnyObject, forKey: cacheKey as NSString)
+                    let result = NeoClientResult.success(tokenSupply)
+                    completion(result)
+                    return
+                }
+               completion(.failure(.invalidData))
             }
         }
     }
